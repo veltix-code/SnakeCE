@@ -2,10 +2,16 @@
 #include <keypadc.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 
-uint16_t palette[11];
+uint16_t palette[15];
 int TAILLE_CARREAU = 24;
+
+struct RGB
+{
+    unsigned char R,G,B;
+};
 
 struct POSITION
 {
@@ -20,6 +26,36 @@ struct Snake
     int longueur;
     POSITION pomme;
 };
+
+void VERIF_CHAR(char truc[4], char trucEnPlus,char& ntruc)
+{
+    if(ntruc == 3){return;}
+    truc[ntruc] = trucEnPlus;
+    truc[ntruc+1] = '\0';
+    ntruc++;
+    if(ntruc == 3 && atoi(truc) > 255){truc[0] = '2';truc[1] = '5';truc[2] = '5';truc[3] = '\0';}
+}
+
+void MODIF_PALETTE_PERSO(int paletteCount, RGB color)//damier1 = 0 , damier2 = 1 , snake = 2 , apple = 3
+{
+    palette[paletteCount+11] = gfx_RGBTo1555(color.R, color.G, color.B);
+    gfx_SetPalette(palette, sizeof(palette), 0);
+}
+
+void DRAWTEXTZONE(int x,int y,int ecart,int w,int h, const char* text,int PColor_1,int PColor_2,int PColorText, bool isSelected_Button = false, int PColorSelect = 3)
+{
+    gfx_SetColor(PColor_1);
+    gfx_FillRectangle(x, y, w, h);
+    gfx_SetColor(PColor_2);
+    gfx_FillRectangle(x+ecart, y+ecart, w-2*ecart, h-2*ecart);
+    if(isSelected_Button)
+    {
+        gfx_SetColor(PColorSelect);
+        gfx_Rectangle(x-1, y-1, w+2, h+2);
+    }
+    gfx_SetTextFGColor(PColorText);
+    gfx_PrintStringXY(text, x + (((w)-gfx_GetStringWidth(text))/2), y + (((h)-8)/2));
+}
 
 void DRAWBUTTONWT(int x,int y,int w,int h, const char* text,int PColor,int PColorText, bool isSelected_Button = false, int PColorSelect = 3)
 {
@@ -160,20 +196,29 @@ int main()
     palette[5] = gfx_RGBTo1555(154, 205, 50);// <-- fond jeu type nokia
     palette[6] = gfx_RGBTo1555(25, 51, 0);// <-- serpent+pomme jeu type nokia
     palette[7] = gfx_RGBTo1555(255, 0, 0);// <-- pomme jeu type google
-    palette[9] = gfx_RGBTo1555(76,153,0);//palette[8] = gfx_RGBTo1555(128, 255, 0);// <-- fond1damier jeu type google
+    palette[8] = gfx_RGBTo1555(76,153,0);//palette[8] = gfx_RGBTo1555(128, 255, 0);// <-- fond1damier jeu type google
     palette[9] = gfx_RGBTo1555(102,204,0);//palette[9] = gfx_RGBTo1555(153, 255, 51);// <-- fond2damier jeu type google
     palette[10] = gfx_RGBTo1555(0, 0, 255);// <-- serpent jeu type google
+    palette[11] = gfx_RGBTo1555(0, 0, 0);
+    palette[12] = gfx_RGBTo1555(15, 15, 15);
+    palette[13] = gfx_RGBTo1555(25, 51, 0);
+    palette[14] = gfx_RGBTo1555(25, 51, 0);
 
     gfx_Begin();
 
-    gfx_SetPalette(palette, 22, 0);
+    gfx_SetPalette(palette, 30, 0);
 
     gfx_SetDrawBuffer();
 
-    unsigned int State = 0; // 0 = Menu, 1 = Parametre, 2 = Jeu, 3 = Mort, credit = 4, THEMES = 5, TOUCHES = 6, DIFFICULTE = 7, JEU-PAUSE = 8, taille = 9
+    unsigned int State = 0; // 0 = Menu, 1 = Parametre, 2 = Jeu, 3 = Mort, credit = 4, THEMES = 5, TOUCHES = 6, DIFFICULTE = 7, JEU-PAUSE = 8, taille = 9,personalisation couleur = 10,personalisation couleur damier1 = 11,personalisation couleur damier2 = 12,personalisation couleur snake = 13, personalisation couleur apple = 14
     signed char positionMenu = 0;
+    signed char positionMenuPersonnalisation = 0;
     bool CLICK_POSSIBLE_MENU = false;
-    unsigned int theme = 0;// 0 = theme nokia, 1 = theme google
+    signed char r_theme,g_theme,b_theme;
+    unsigned int theme = 0;// 0 = theme nokia, 1 = theme google, 2 = perso
+    RGB theme_perso_damier1,theme_perso_damier2,theme_perso_snake,theme_perso_apple;
+    char char_perso1[4]="0";char char_perso2[4]="0";char char_perso3[4]="0";
+    char char_perso1n=0;char char_perso2n=0;char char_perso3n=0;
     unsigned int difficulte = 2;// 1 = facile, 2 = moyen, 4 = difficile
     int score = 0;
     int highscore = 0;
@@ -207,8 +252,8 @@ int main()
             }
             
         }
-        if((kb_IsDown(kb_KeyUp)||kb_IsDown(kb_Key8)) && positionMenu > 0 && CLICK_POSSIBLE_MENU){positionMenu--;CLICK_POSSIBLE_MENU=false;}
-        if((kb_IsDown(kb_KeyDown)||kb_IsDown(kb_Key2)) && positionMenu < 15 && CLICK_POSSIBLE_MENU){positionMenu++;CLICK_POSSIBLE_MENU=false;}
+        if((kb_IsDown(kb_KeyUp)) && positionMenu > 0 && CLICK_POSSIBLE_MENU){positionMenu--;CLICK_POSSIBLE_MENU=false;}//||kb_IsDown(kb_Key8)
+        if((kb_IsDown(kb_KeyDown)) && positionMenu < 15 && CLICK_POSSIBLE_MENU){positionMenu++;CLICK_POSSIBLE_MENU=false;}//||kb_IsDown(kb_Key2)
         if(State == 0){if(positionMenu > 2){positionMenu = 2;};if(positionMenu < 0){positionMenu = 0;}}
         if(State == 0 && kb_IsDown(kb_KeyEnter) && CLICK_POSSIBLE_MENU)
         {
@@ -229,6 +274,7 @@ int main()
             else if(positionMenu == 4){State = 0;}
             positionMenu = 0;
         }
+        if(State == 2){if(positionMenu > 0){positionMenu = 0;};if(positionMenu < 0){positionMenu = 0;}}
         if(State == 4){if(positionMenu > 0){positionMenu = 0;};if(positionMenu < 0){positionMenu = 0;}}
         if(State == 4 && kb_IsDown(kb_KeyEnter) && CLICK_POSSIBLE_MENU)
         {
@@ -252,12 +298,13 @@ int main()
             else if(positionMenu == 2){difficulte = 4;State = 1;}
             positionMenu = 0;
         }
-        if(State == 5){if(positionMenu > 1){positionMenu = 1;};if(positionMenu < 0){positionMenu = 0;}}
+        if(State == 5){if(positionMenu > 2){positionMenu = 2;};if(positionMenu < 0){positionMenu = 0;}}
         if(State == 5 && kb_IsDown(kb_KeyEnter) && CLICK_POSSIBLE_MENU)
         {
             CLICK_POSSIBLE_MENU = false;
             if(positionMenu == 0){theme = 0;State = 1;}
             else if(positionMenu == 1){theme = 1;State = 1;}
+            else if(positionMenu == 2){State = 10;}
             positionMenu = 0;
         }
         if(State == 9){if(positionMenu > 2){positionMenu = 2;};if(positionMenu < 0){positionMenu = 0;}}
@@ -282,6 +329,61 @@ int main()
         {
             CLICK_POSSIBLE_MENU = false;
             if(positionMenu == 0){State = 0;positionMenu = 0;}
+            positionMenu = 0;
+        }
+        if(State == 10){if(positionMenu > 4){positionMenu = 4;};if(positionMenu < 0){positionMenu = 0;}}
+        if(State == 10 && kb_IsDown(kb_KeyEnter) && CLICK_POSSIBLE_MENU)
+        {
+            CLICK_POSSIBLE_MENU = false;
+            if(positionMenu == 0){State = 11;positionMenu = 0;}//snprintf(char_perso1, sizeof(char_perso1), "%d", (unsigned char)theme_perso_damier1.R);snprintf(char_perso2, sizeof(char_perso2), "%d", (unsigned char)theme_perso_damier1.G);snprintf(char_perso3, sizeof(char_perso3), "%d", (unsigned char)theme_perso_damier1.B);}
+            if(positionMenu == 1){State = 12;positionMenu = 0;}//snprintf(char_perso1, sizeof(char_perso1), "%d", (unsigned char)theme_perso_damier2.R);snprintf(char_perso2, sizeof(char_perso2), "%d", (unsigned char)theme_perso_damier2.G);snprintf(char_perso3, sizeof(char_perso3), "%d", (unsigned char)theme_perso_damier2.B);}
+            if(positionMenu == 2){State = 13;positionMenu = 0;}//snprintf(char_perso1, sizeof(char_perso1), "%d", (unsigned char)theme_perso_snake.R);snprintf(char_perso2, sizeof(char_perso2), "%d", (unsigned char)theme_perso_snake.G);snprintf(char_perso3, sizeof(char_perso3), "%d", (unsigned char)theme_perso_snake.B);}
+            if(positionMenu == 3){State = 14;positionMenu = 0;}//snprintf(char_perso1, sizeof(char_perso1), "%d", (unsigned char)theme_perso_apple.R);snprintf(char_perso2, sizeof(char_perso2), "%d", (unsigned char)theme_perso_apple.G);snprintf(char_perso3, sizeof(char_perso3), "%d", (unsigned char)theme_perso_apple.B);}
+            if(positionMenu == 4){State = 1;positionMenu = 0;theme = 2;}
+            positionMenu = 0;
+        }
+        if(State == 11 || State == 12 || State == 13 || State == 14){if(positionMenu > 1){positionMenu = 1;};if(positionMenu < 0){positionMenu = 0;}}
+        if((State == 11 || State == 12 || State == 13 || State == 14) && kb_IsDown(kb_KeyEnter) && CLICK_POSSIBLE_MENU && positionMenu > 0)
+        {
+            CLICK_POSSIBLE_MENU = false;
+            if(positionMenu == 1)
+            {
+                if(State == 11)
+                {
+                    theme_perso_damier1.R = (char)atoi(char_perso1);
+                    theme_perso_damier1.G = (char)atoi(char_perso2);
+                    theme_perso_damier1.B = (char)atoi(char_perso3);
+                    MODIF_PALETTE_PERSO(0,theme_perso_damier1);
+                }
+                if(State == 12)
+                {
+                    theme_perso_damier2.R = (char)atoi(char_perso1);
+                    theme_perso_damier2.G = (char)atoi(char_perso2);
+                    theme_perso_damier2.B = (char)atoi(char_perso3);
+                    MODIF_PALETTE_PERSO(1,theme_perso_damier2);
+                }
+                if(State == 13)
+                {
+                    theme_perso_snake.R = (char)atoi(char_perso1);
+                    theme_perso_snake.G = (char)atoi(char_perso2);
+                    theme_perso_snake.B = (char)atoi(char_perso3);
+                    MODIF_PALETTE_PERSO(2,theme_perso_snake);
+                }
+                if(State == 14)
+                {
+                    theme_perso_apple.R = (char)atoi(char_perso1);
+                    theme_perso_apple.G = (char)atoi(char_perso2);
+                    theme_perso_apple.B = (char)atoi(char_perso3);
+                    MODIF_PALETTE_PERSO(3,theme_perso_apple);
+                }
+            }
+            char_perso1[0]='\0';
+            char_perso2[0]='\0';
+            char_perso3[0]='\0';
+            char_perso1n=0;
+            char_perso2n=0;
+            char_perso3n=0;
+            State = 10;
             positionMenu = 0;
         }
 
@@ -353,6 +455,11 @@ int main()
                 DRAWDAMIER(0, 0, 240, 240, TAILLE_CARREAU, 8, 9);
                 DRAWSERPENT(serpent,240,240,TAILLE_CARREAU, 10, 7);
             }
+            else if(theme == 2)
+            {
+                DRAWDAMIER(0, 0, 240, 240, TAILLE_CARREAU, 11, 12);
+                DRAWSERPENT(serpent,240,240,TAILLE_CARREAU, 13, 14);
+            }
 
             clock_t maintenant = clock();
             if((maintenant - dernier_deplacement) >= (10000 / difficulte))
@@ -369,6 +476,12 @@ int main()
                     DRAWDAMIER(0, 0, 240, 240, TAILLE_CARREAU, 8, 9);
                     MODIFSERPENT(serpent, 240, 240, TAILLE_CARREAU, State, score, nb_apple);
                     DRAWSERPENT(serpent,240,240,TAILLE_CARREAU, 10, 7);
+                }
+                else if(theme == 2)
+                {
+                    DRAWDAMIER(0, 0, 240, 240, TAILLE_CARREAU, 11, 12);
+                    MODIFSERPENT(serpent, 240, 240, TAILLE_CARREAU, State, score, nb_apple);
+                    DRAWSERPENT(serpent,240,240,TAILLE_CARREAU, 13, 14);
                 }
             }
             
@@ -394,6 +507,8 @@ int main()
         {
             if(positionMenu == 0){DRAWBUTTONWT(64, 25, 192, 25, "NOKIA", 2, 4, true);}else{DRAWBUTTONWT(64, 25, 192, 25, "NOKIA", 2, 4, false);}
             if(positionMenu == 1){DRAWBUTTONWT(64, 60, 192, 25, "GOOGLE", 2, 4, true);}else{DRAWBUTTONWT(64, 60, 192, 25, "GOOGLE", 2, 4, false);}
+            if(positionMenu == 2){DRAWBUTTONWT(64, 95, 192, 25, "PERSONNALISE", 2, 4, true);}else{DRAWBUTTONWT(64, 95, 192, 25, "PERSONNALISE", 2, 4, false);}
+
         }
         else if(State == 6)
         {
@@ -424,12 +539,42 @@ int main()
             if(positionMenu == 1){DRAWBUTTONWT(64, 60, 192, 25, "15x15", 2, 4, true);}else{DRAWBUTTONWT(64, 60, 192, 25, "15x15", 2, 4, false);}
             if(positionMenu == 2){DRAWBUTTONWT(64, 95, 192, 25, "24x24", 2, 4, true);}else{DRAWBUTTONWT(64, 95, 192, 25, "24x24", 2, 4, false);}
         }
+        else if(State == 10)
+        {
+            if(positionMenu == 0){DRAWBUTTONWT(64, 25, 192, 25, "DAMIER 1", 2, 4, true);}else{DRAWBUTTONWT(64, 25, 192, 25, "DAMIER 1", 2, 4, false);}
+            if(positionMenu == 1){DRAWBUTTONWT(64, 60, 192, 25, "DAMIER 2", 2, 4, true);}else{DRAWBUTTONWT(64, 60, 192, 25, "DAMIER 2", 2, 4, false);}
+            if(positionMenu == 2){DRAWBUTTONWT(64, 95, 192, 25, "SNAKE", 2, 4, true);}else{DRAWBUTTONWT(64, 95, 192, 25, "SNAKE", 2, 4, false);}
+            if(positionMenu == 3){DRAWBUTTONWT(64, 130, 192, 25, "APPLE", 2, 4, true);}else{DRAWBUTTONWT(64, 130, 192, 25, "APPLE", 2, 4, false);}
+            if(positionMenu == 4){DRAWBUTTONWT(64, 165, 192, 25, "RETOUR", 2, 4, true);}else{DRAWBUTTONWT(64, 165, 192, 25, "RETOUR", 2, 4, false);}
+        }
+        else if(State == 11 || State == 12 || State == 13 || State == 14)
+        {
+            if(positionMenuPersonnalisation < 0){positionMenuPersonnalisation = 0;}if(positionMenuPersonnalisation > 2){positionMenuPersonnalisation = 2;}
+            if(kb_IsDown(kb_KeyRight) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation > 2){}else{positionMenuPersonnalisation++;}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_KeyLeft) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation < 1){}else{positionMenuPersonnalisation--;}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_KeyDel) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){char_perso1[0] = '\0';char_perso1n = 0;}else if(positionMenuPersonnalisation == 1){char_perso2[0] = '\0';char_perso2n = 0;}else if(positionMenuPersonnalisation == 2){char_perso3[0] = '\0';char_perso3n = 0;}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key0) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'0',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'0',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'0',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key1) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'1',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'1',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'1',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key2) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'2',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'2',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'2',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key3) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'3',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'3',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'3',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key4) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'4',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'4',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'4',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key5) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'5',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'5',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'5',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key6) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'6',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'6',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'6',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key7) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'7',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'7',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'7',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key8) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'8',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'8',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'8',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+            if(kb_IsDown(kb_Key9) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){VERIF_CHAR(char_perso1,'9',char_perso1n);}else if(positionMenuPersonnalisation == 1){VERIF_CHAR(char_perso2,'9',char_perso2n);}else if(positionMenuPersonnalisation == 2){VERIF_CHAR(char_perso3,'9',char_perso3n);}CLICK_POSSIBLE_MENU = false;}
+
+            if(positionMenuPersonnalisation == 0 && positionMenu == 0){DRAWTEXTZONE(32, 100,5, 64, 25, char_perso1, 2, 4, true,3);}else{DRAWTEXTZONE(32, 100,5, 64, 25, char_perso1, 2, 4, false);}
+            if(positionMenuPersonnalisation == 1 && positionMenu == 0){DRAWTEXTZONE(128, 100,5, 64, 25, char_perso2, 2, 4, true,3);}else{DRAWTEXTZONE(128, 100,5, 64, 25, char_perso2, 2, 4, false);}
+            if(positionMenuPersonnalisation == 2 && positionMenu == 0){DRAWTEXTZONE(224, 100,5, 64, 25, char_perso3, 2, 4, true,3);}else{DRAWTEXTZONE(224, 100,5, 64, 25, char_perso3, 2, 4, false);}
+            if(positionMenu == 1){DRAWBUTTONWT(64, 205, 192, 25, "ENREGISTRER", 2, 4, true);}else{DRAWBUTTONWT(64, 205, 192, 25, "ENREGISTRER", 2, 4, false);}
+        }
         else
         {
             gfx_SetTextFGColor(3);
             gfx_PrintStringXY("ERREUR", ((320-gfx_GetStringWidth("ERREUR"))/2), 50);//gfx_PrintStringXY("SNAKE", 62, 50);
         }
-        if (!kb_IsDown(kb_KeyUp) && !kb_IsDown(kb_KeyDown) && !kb_IsDown(kb_KeyEnter) && !kb_IsDown(kb_KeyClear) && !kb_IsDown(kb_Key8) && !kb_IsDown(kb_Key2))
+        if (!kb_IsDown(kb_KeyUp) && !kb_IsDown(kb_KeyDown) && !kb_IsDown(kb_KeyLeft) && !kb_IsDown(kb_KeyRight) && !kb_IsDown(kb_KeyEnter) && !kb_IsDown(kb_KeyClear) && !kb_IsDown(kb_Key0) && !kb_IsDown(kb_Key1) && !kb_IsDown(kb_Key2) && !kb_IsDown(kb_Key3) && !kb_IsDown(kb_Key4) && !kb_IsDown(kb_Key5) && !kb_IsDown(kb_Key6) && !kb_IsDown(kb_Key7) && !kb_IsDown(kb_Key8) && !kb_IsDown(kb_Key9) && !kb_IsDown(kb_KeyDel))
         {
             CLICK_POSSIBLE_MENU = true;
         }
@@ -440,6 +585,9 @@ int main()
     return 0;
 }
 /*
+
+snprintf(chaine, sizeof(chaine), "%d", (unsigned char)theme_perso_damier1.R);
+char nombre = (char)atoi(chaine);
 
 estetique a garder pour plus tard
 
@@ -455,4 +603,22 @@ couleur fond
     palette[2] = gfx_RGBTo1555(50, 50, 50); <-- gris claire bouton
     palette[3] = gfx_RGBTo1555(12, 200, 12); <-- joli vert
     palette[4] = gfx_RGBTo1555(255, 255, 255); <-- blanc
+
+
+
+if(kb_IsDown(kb_Key0) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'0');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'0');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'0');}CLICK_POSSIBLE_MENU = false;}
+if(kb_IsDown(kb_Key1) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'1');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'1');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'1');}CLICK_POSSIBLE_MENU = false;}
+if(kb_IsDown(kb_Key2) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'2');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'2');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'2');}CLICK_POSSIBLE_MENU = false;}
+if(kb_IsDown(kb_Key3) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'3');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'3');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'3');}CLICK_POSSIBLE_MENU = false;}
+if(kb_IsDown(kb_Key4) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'4');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'4');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'4');}CLICK_POSSIBLE_MENU = false;}
+if(kb_IsDown(kb_Key5) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'5');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'5');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'5');}CLICK_POSSIBLE_MENU = false;}
+if(kb_IsDown(kb_Key6) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'6');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'6');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'6');}CLICK_POSSIBLE_MENU = false;}
+if(kb_IsDown(kb_Key7) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'7');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'7');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'7');}CLICK_POSSIBLE_MENU = false;}
+if(kb_IsDown(kb_Key8) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'8');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'8');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'8');}CLICK_POSSIBLE_MENU = false;}
+if(kb_IsDown(kb_Key9) && CLICK_POSSIBLE_MENU && positionMenu == 0){if(positionMenuPersonnalisation == 0){ADD_NUMBER_TO_CHAR4(char_perso1,'9');}else if(positionMenuPersonnalisation == 1){ADD_NUMBER_TO_CHAR4(char_perso2,'9');}else if(positionMenuPersonnalisation == 2){ADD_NUMBER_TO_CHAR4(char_perso1,'9');}CLICK_POSSIBLE_MENU = false;}
+     
+void ADD_NUMBER_TO_CHAR4(char truc[4], char trucEnPlus)
+{
+    truc[0] = truc[1];truc[1] = truc[2];truc[2] = trucEnPlus;
+}
 */
